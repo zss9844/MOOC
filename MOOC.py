@@ -1,3 +1,4 @@
+import random
 import sys
 from tqdm import tqdm
 import requests
@@ -244,9 +245,7 @@ class mooc_spider():
         for option_text in option_text_list:
             content_id = re.findall('content="(.*?)";s\d+\.id=(\d+);', option_text, re.S)
             content_id_list.append(content_id)
-
         option_dict = {'analyse': '', 'answer': '', 'content': '', 'id': '', 'selectCount': ''}
-
         aid, tid, tname, end_type = \
             re.findall('dwr.engine.*?aid:(\d+),.*?tid:(\d+),tname:"(.*?)",type:(\d+)}', text, re.S)[0]
         submit_data = {
@@ -298,12 +297,12 @@ class mooc_spider():
                               'titleAttachment': '', 'titleAttachmentDtos': '', 'type': ''}
         num = len(list_0)
         Array = []
-        count = 0
-        while True:
-            Array.append("reference:c0-e{}".format(6 + 54 * count))
-            count += 1
-            if count == num:
-                break
+        for n_0 in range(num):
+            if len(content_id_list) == 2:
+                Array.append("reference:c0-e{}".format(6 + 54 * n_0))
+            else:
+                Array.append("reference:c0-e{}".format(6 + 42 * n_0))
+
         submit_data["c0-e5"] = "Array:{}".format(Array)
         # Array
         for n in range(num):
@@ -344,7 +343,7 @@ class mooc_spider():
                     option_list0 = content_id_list[n]
                     Array0 = []
                     num1 = int(key1.split('e')[-1]) + 1
-                    for i0 in range(4):
+                    for i0 in range(len(option_list0)):
                         Array0.append("reference:c0-e{}".format(num1 + 6 * i0))
 
                     for i1 in range(len(Array0)):
@@ -560,16 +559,16 @@ class mooc_spider():
             print(key, value[0], value[1])
         print('-' * 100)
         print('''
-       ▄██████▄   ▄██████▄          ▄████████  ▄██████▄     ▄████████       ▄█      ███     
-      ███    ███ ███    ███        ███    ███ ███    ███   ███    ███      ███  ▀█████████▄ 
-      ███    █▀  ███    ███        ███    █▀  ███    ███   ███    ███      ███▌    ▀███▀▀██ 
-     ▄███        ███    ███       ▄███▄▄▄     ███    ███  ▄███▄▄▄▄██▀      ███▌     ███   ▀ 
-    ▀▀███ ████▄  ███    ███      ▀▀███▀▀▀     ███    ███ ▀▀███▀▀▀▀▀        ███▌     ███     
-      ███    ███ ███    ███        ███        ███    ███ ▀███████████      ███      ███     
-      ███    ███ ███    ███        ███        ███    ███   ███    ███      ███      ███     
-      ████████▀   ▀██████▀         ███         ▀██████▀    ███    ███      █▀      ▄████▀   
-                                                           ███    ███                       
-    ''')
+           ▄██████▄   ▄██████▄          ▄████████  ▄██████▄     ▄████████       ▄█      ███     
+          ███    ███ ███    ███        ███    ███ ███    ███   ███    ███      ███  ▀█████████▄ 
+          ███    █▀  ███    ███        ███    █▀  ███    ███   ███    ███      ███▌    ▀███▀▀██ 
+         ▄███        ███    ███       ▄███▄▄▄     ███    ███  ▄███▄▄▄▄██▀      ███▌     ███   ▀ 
+        ▀▀███ ████▄  ███    ███      ▀▀███▀▀▀     ███    ███ ▀▀███▀▀▀▀▀        ███▌     ███     
+          ███    ███ ███    ███        ███        ███    ███ ▀███████████      ███      ███     
+          ███    ███ ███    ███        ███        ███    ███   ███    ███      ███      ███     
+          ████████▀   ▀██████▀         ███         ▀██████▀    ███    ███      █▀      ▄████▀   
+                                                               ███    ███                       
+        ''')
         while True:
             print('-' * 100)
             key = input("输入非纯字符将会自动退出\n请输入你要选择课程的序号:")
@@ -584,7 +583,9 @@ class mooc_spider():
                 test_name_id_dic = self.get_test_info(courses_id)
                 print('开始下载......')
                 for test_name, test_id in test_name_id_dic.items():
+                    time.sleep(random.randint(2,5))
                     aid, tid = self.submit_paper(test_id)
+                    time.sleep(1)
                     paper_dic, Answer_list = self.get_paper(aid, tid)
                     self.word(paper_dic, Answer_list, path, test_name)
             else:
@@ -593,4 +594,4 @@ class mooc_spider():
 
 m = mooc_spider()
 m.spider()
-# pyinstaller -F MOOC.py
+# pyinstaller -F 1.py
