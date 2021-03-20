@@ -5,7 +5,6 @@ import requests
 import time
 from requests.utils import dict_from_cookiejar, cookiejar_from_dict
 import json
-import math
 import re
 import string
 from urllib import parse
@@ -147,41 +146,46 @@ class mooc_spider():
         return
 
     def get_pagesize(self):
-        url = "https://www.icourse163.org/web/j/learnerCourseRpcBean.getPersonalLearningStatisticDto.rpc"
-        data = {
-            "uid": self.userId
-        }
+        url = "https://www.icourse163.org/web/j/learnerCourseRpcBean.getMyLearnedCoursePanelList.rpc"
         params = {
             "csrfKey": self.csrfKey
         }
+        data = {
+            'type': '30',
+            'p': '1',
+            'psize': '8',
+            'courseType': '1',
+        }
         response = self.session.post(url=url, params=params, data=data)
-        learingCoursesCount = response.json()["result"]["learingCoursesCount"]
-        pagesize = math.ceil(learingCoursesCount / 8) + 1
-        return pagesize
+        pagesize = response.json()["result"]["pagination"]["totlePageCount"]
+        return int(pagesize)
 
-    def get_courses(self, pagessize):
+    def get_courses(self, pagesize):
         courses_dic = {}
         url = "https://www.icourse163.org/web/j/learnerCourseRpcBean.getMyLearnedCoursePanelList.rpc"
         params = {
             "csrfKey": self.csrfKey
         }
         n_key = 0
-        for p in range(1, pagessize):
+        for p in range(1, pagesize):
             data = {
                 "type": "30",
                 "p": p,
-                "psize": pagessize,
+                "psize": '8',
                 "courseType": "1",
             }
             response = self.session.post(url, data=data, params=params)
             result = response.json()["result"]["result"]
-            for i in result:
-                name = i["name"]
-                courses_id = i["termPanel"]["id"]
-                school_name = i["schoolPanel"]["name"]
-                list = [name, school_name, courses_id]
-                courses_dic[str(n_key)] = list
-                n_key += 1
+            try:
+                for i in result:
+                    name = i["name"]
+                    courses_id = i["termPanel"]["id"]
+                    school_name = i["schoolPanel"]["name"]
+                    list = [name, school_name, courses_id]
+                    courses_dic[str(n_key)] = list
+                    n_key += 1
+            except:
+                pass
         return courses_dic
 
     def get_timestamp(self):
@@ -238,8 +242,6 @@ class mooc_spider():
         url = "https://www.icourse163.org/dwr/call/plaincall/MocQuizBean.getQuizPaperDto.dwr"
         response = self.session.post(url=url, data=data)
         text = response.text.encode('utf-8').decode('unicode-escape')
-        time.sleep(1)
-
         option_text_list = re.findall('type.*?allowUpload|type.*?dwr\.engine', text, re.S)
         content_id_list = []
         for option_text in option_text_list:
@@ -277,7 +279,7 @@ class mooc_spider():
             score = re.findall('s\d+\.score=(.*?);', i)
             score_list.extend(score)
 
-            title = re.findall('s\d+\.title="(.*?)";s\d+\.titleAttachment', i)
+            title = re.findall('s\d+\.title="(.*?)";s\d+\.titleAttachment', i, re.S)
             title_list.extend(title)
 
             type = re.findall('s\d+\.type=(.*?);', i)
@@ -297,11 +299,14 @@ class mooc_spider():
                               'titleAttachment': '', 'titleAttachmentDtos': '', 'type': ''}
         num = len(list_0)
         Array = []
+        sum = 6
         for n_0 in range(num):
-            if len(content_id_list) == 2:
-                Array.append("reference:c0-e{}".format(6 + 54 * n_0))
+            if len(content_id_list[n_0]) == 4:
+                Array.append("reference:c0-e{}".format(sum))
+                sum += 54
             else:
-                Array.append("reference:c0-e{}".format(6 + 42 * n_0))
+                Array.append("reference:c0-e{}".format(sum))
+                sum += 42
 
         submit_data["c0-e5"] = "Array:{}".format(Array)
         # Array
@@ -321,7 +326,10 @@ class mooc_spider():
                 if num0 <= num + 16:
                     Object_Object_dict[key0] = "reference:c0-e{}".format(num0 + 1)
                 else:
-                    Object_Object_dict[key0] = "reference:c0-e{}".format(num0 + 25)
+                    if len(content_id_list[n]) == 4:
+                        Object_Object_dict[key0] = "reference:c0-e{}".format(num0 + 25)
+                    else:
+                        Object_Object_dict[key0] = "reference:c0-e{}".format(num0 + 13)
                 num0 += 1
             submit_data[key] = "Object_Object:{}".format(Object_Object_dict)
             # Object_Object
@@ -332,7 +340,12 @@ class mooc_spider():
                 elif key_0 == "plainTextTitle":
                     submit_data[key1] = "string:{}".format(parse.quote(plainTextTitle))
                 elif key_0 == "score":
-                    submit_data[key1] = "number:{}".format(score.split(".")[0])
+                    score = float(score)
+                    if score >= 1:
+                        score = round(score, 0)
+                    else:
+                        score = round(score, 1)
+                    submit_data[key1] = "number:{}".format(score)
                 elif key_0 == "title":
                     submit_data[key1] = "string:{}".format(parse.quote(title))
                 elif key_0 == "position":
@@ -389,7 +402,7 @@ class mooc_spider():
             elif i == "tid":
                 submit_data[key] = "number:{}".format(tid)
             elif i == "tname":
-                submit_data[key] = parse.quote(tname)
+                submit_data[key] = "string:{}".format(parse.quote(tname))
             else:
                 submit_data[key] = "number:{}".format(end_type)
             dict0[i] = "reference:{}".format(key)
@@ -452,17 +465,28 @@ class mooc_spider():
         '''选项处理'''
         # 选项截取下来
         option_text_list = re.findall('type.*?allowUpload|type.*?dwr\.engine', text, re.S)
+        stdAnswer_list = re.findall('s\d+\.stdAnswer=(.*?);', text)
         option_max_list = []
+        n_1 = 0
         for option_text in option_text_list:
             option_text = re.sub('<span style=".*?"  >|</span>|&nbsp;|<em style=".*?"  >', '', option_text)
             '''每个题目里的选项截取'''
             # 答案截取
-            answer_list = re.findall("s\d+\.answer=(.*?);", option_text)
+            answer_list = re.findall('s\d+\.answer=(.*?);|s\d+\.stdAnswer="(.*?)";', option_text)
+            answer_list = [i[0] for i in answer_list]
+            if answer_list == []:
+                text0 = stdAnswer_list[n_1]
+                answer_list.append(text0)
+            n_1 += 1
+
             str0 = string.ascii_uppercase
             answer0 = ''
-            for n0 in range(len(answer_list)):
-                if answer_list[n0] == 'true':
-                    answer0 += str0[n0]
+            if len(answer_list) == 1:
+                answer0 = re.sub('"', '', answer_list[0])
+            else:
+                for n0 in range(len(answer_list)):
+                    if answer_list[n0] == 'true':
+                        answer0 += str0[n0]
             Answer_list.append(answer0)
             list1 = re.findall('content="(.*?)";s\d+\.id', option_text)
             option_list = []
@@ -505,11 +529,24 @@ class mooc_spider():
             run = document.paragraphs[-1].add_run()
             for i in title_list:
                 if 'http' in i:
-                    response = requests.get(url=i, headers=headers)
-                    content = response.content
-                    with open('core\paper.png', 'wb') as f:
-                        f.write(content)
-                    run.add_picture('core\paper.png')
+                    try:
+                        url = i
+                        response = requests.get(url=url, headers=headers)
+                        content = response.content
+                        with open('core\paper.png', 'wb') as f:
+                            f.write(content)
+                        run.add_picture('core\paper.png')
+
+                    except:
+                        if "imageView" in i:
+                            url = i
+                        else:
+                            url = "https://img-ph-mirror.nosdn.127.net" + i.split("net")[-1]
+                        response = requests.get(url=url, headers=headers)
+                        content = response.content
+                        with open('core\paper.png', 'wb') as f:
+                            f.write(content)
+                        run.add_picture('core\paper.png')
                 else:
                     try:
                         if i != '':
@@ -527,11 +564,25 @@ class mooc_spider():
                 run = document.paragraphs[-1].add_run()
                 for i in option_list:
                     if 'http' in i:
-                        response = requests.get(url=i, headers=headers)
-                        content = response.content
-                        with open('core\paper.png', 'wb') as f:
-                            f.write(content)
-                        run.add_picture('core\paper.png')
+                        try:
+                            url = i
+                            response = requests.get(url=url, headers=headers)
+                            content = response.content
+                            with open('core\paper.png', 'wb') as f:
+                                f.write(content)
+                            run.add_picture('core\paper.png')
+
+                        except:
+                            if "imageView" in i:
+                                url = i
+                            else:
+                                url = "https://img-ph-mirror.nosdn.127.net" + i.split("net")[-1]
+                            response = requests.get(url=url, headers=headers)
+                            content = response.content
+                            with open('core\paper.png', 'wb') as f:
+                                f.write(content)
+                            run.add_picture('core\paper.png')
+
                     else:
                         try:
                             if i != '':
@@ -583,7 +634,7 @@ class mooc_spider():
                 test_name_id_dic = self.get_test_info(courses_id)
                 print('开始下载......')
                 for test_name, test_id in test_name_id_dic.items():
-                    time.sleep(random.randint(2,5))
+                    time.sleep(random.randint(2, 5))
                     aid, tid = self.submit_paper(test_id)
                     time.sleep(1)
                     paper_dic, Answer_list = self.get_paper(aid, tid)
@@ -594,4 +645,4 @@ class mooc_spider():
 
 m = mooc_spider()
 m.spider()
-# pyinstaller -F 1.py
+# pyinstaller -F MOOC.py
